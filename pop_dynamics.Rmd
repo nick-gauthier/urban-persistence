@@ -1,0 +1,27 @@
+---
+title: "growth curves"
+author: "Nick Gauthier"
+date: "9/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(Silvanus)
+library(tidyverse)
+```
+
+```{r}
+
+t1 <- create_individuals2(25)
+
+```
+
+```{r}
+rn <- c(rep(.88, 100), rep(.8, 100), rep(.8, 100), rep(.7, 100) ,rep(0.6, 75), rep(.7, 75), rep(.8, 150))
+
+dem_sim <- run_sim2(t1, food_ratio = rn, nsim = length(rn))
+
+
+b <- ggplot(dem_sim, aes(time, population)) + geom_line(size = 1.2) +theme_classic() + theme(axis.ticks = element_blank(), axis.text = element_blank())
+```

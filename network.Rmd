@@ -1,0 +1,126 @@
+---
+title: "persistence"
+author: "Nick Gauthier"
+date: "9/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tidygraph)
+library(ggraph)
+library(sf)
+#devtools::install_github("tylermorganwall/rayshader")
+library(rayshader)
+library(scico)
+library(RandomFields)
+```
+
+
+```{r}
+make_grf <- function(x, y, scale = 100){
+  mod <- RMexp(var = (200 / 3)^2, scale = scale) + 
+    RMnugget(var = .5) + 
+    RMtrend(mean = 100)
+   RFsimulate(mod, x = x, y = y)$variable1
+}
+
+```
+
+```{r}
+library(ggraph)
+  hinterlands <- c(40,-69, -40,-69,-80,0,-40,69,40,69,80,0,40,-69) %>% # changing one 69 in the top corner to a 70 helps for some reason
+  matrix(nrow = 7, byrow = 2) %>%
+  list %>%
+  st_polygon
+```
+
+```{r}
+set.seed(4)
+
+dat <- st_bbox(c(xmin = -100, xmax = 100, ymin = -100, ymax = 100)) %>% 
+  st_as_sfc() %>%
+  st_make_grid(square = FALSE, cellsize = 6) %>%
+  st_sf() %>%
+  mutate(x = st_coordinates(st_centroid(geometry))[,1],
+         y = st_coordinates(st_centroid(geometry))[,2]) %>% 
+  mutate(a = make_grf(x, y)) %>%
+    filter(st_intersects(geometry, hinterlands, sparse = FALSE))
+
+
+pts <- dat %>%
+  slice_sample(n = 40, weight_by = a - min(a) + 1) %>%
+  st_centroid() %>%
+  filter(a > 0) %>%
+  mutate(name = 1:n(),
+         population = 5,
+         attractiveness = 1)
+```
+```{r}
+net <- st_distance(pts) %>%
+  as_tibble(rownames = 'from') %>%
+  pivot_longer(-from, names_to = 'to', names_transform = list(to = parse_number),
+               values_to = 'distance') %>%
+   tbl_graph(nodes = pts, edges = .) %E>%
+  filter(!edge_is_loop()) %>%
+  group_by(from) %>%
+  top_n(5, -distance)
+```
+
+```{r}
+interact <- function(net){
+  net %E>%
+    mutate(interaction_strength = .N()$attractiveness[to] ^ alpha * exp(-beta * distance))  %N>%
+    mutate(outflow = population / centrality_degree(weights = interaction_strength, mode = 'out', loops = F)) %E>%
+    mutate(flow = .N()$outflow[from] * interaction_strength) %N>%
+    mutate(inflow = centrality_degree(weights = flow, mode = 'in', loops = F)) %>%
+    mutate(attractiveness = attractiveness + .01 * (inflow  - attractiveness)) %>%
+    mutate(population = 97 * attractiveness / sum(attractiveness))
+}
+
+alpha <- 1.05
+beta <- .57
+
+for(i in 1:500){
+  net <- interact(net)
+}
+```
+
+
+```{r}
+ a <- net %>%
+  ggraph('manual', x = x, y = y) +
+     geom_sf(data = dat, aes(fill = a, color = a, geometry = geometry), color = 'black', lwd = .25) +
+  geom_edge_link( edge_alpha = .9, color = 'white') +
+#  geom_node_point(size = 2, color = 'white') +
+#  scale_size_area()+
+ #  geom_sf(data = pts, aes(geometry = geometry)) +
+ #scale_fill_viridis_c(option = 'E')
+     scale_fill_scico(palette = 'bamako', direction = -1) +
+       scale_color_scico(palette = 'bamako', direction = -1) +
+ ##scale_fill_scico(palette = 'oleron', limits = c(-100, 100)) +
+  theme_void() +
+  guides(fill = FALSE, size = FALSE)
+```
+
+```{r}
+c <- play_islands(5, 10, 0.8, 3) %>% 
+    mutate(community = as.factor(group_infomap())) %>% 
+    ggraph(layout = 'kk') + 
+    geom_edge_link(aes(alpha = ..index..), show.legend = FALSE) + 
+    geom_node_point(size = 3) + 
+    theme_graph()
+```
+
+
+```{r, fig.width = 10, fig.height = 4}
+library(patchwork)
+a + b + c+ plot_annotation(tag_levels = 'a', tag_prefix = '(', tag_suffix = ')')
+```
+
+```{r}
+plot_gg(test)
+```
+
