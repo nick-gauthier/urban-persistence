@@ -1,0 +1,191 @@
+---
+title: "Potential Productivity Analysis"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+# Setup
+
+Load packages required for this analysis.
+```{r, message = FALSE}
+library(sf) # geospatial analysis
+library(stars) # raster processing
+library(tidyverse) # data cleaning
+# library(maps) used for state boundaries, but not loaded here
+```
+
+# Global productivity estimates
+
+The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. The model uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final potential NPP estimate:
+
+$$NPP_{precip} = 3000(1 - e^{-0.000664 P})$$
+$$NPP_{temp} = \frac{3000}{1 + e^{1.315-0.119T}}$$
+
+We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of global climate layers that have undergone statistical downscaling to correct for topoclimatic influences such as orographic precipitation and temperature inversions.
+
+```{r}
+npp <- read_stars(c('CHELSA_bio10_01.tif', 'CHELSA_bio10_12.tif')) %>% 
+  setNames(c('temperature', 'precipitation')) %>%
+  mutate(temperature = temperature / 10, # temperature is in degrees C * 10
+         ### the miami model
+         npp_prec = 3000 * (1 - exp(-0.000664 * precipitation)),
+         npp_temp = 3000 / (1 + exp(1.315 - 0.119 * temperature)),
+         npp = pmin(npp_prec, npp_temp)) %>%
+  select(npp)
+```
+
+```{r, echo = FALSE}
+ggplot() +
+  geom_stars(data = npp, downsample = 10) +
+  scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Potential net primary production', 'Maximum terrestrial biomass given modern temperature and precipitation') +
+  theme_bw() +
+  labs(x = 'Longitude', y = 'Latitude') +
+  coord_quickmap()
+```
+The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
+
+# Regional productivity estimates
+
+## Southeast Mounds
+
+Next clip the global NPP map to our regions of interest. Use the state boundaries of Alabama, Georgia, Mississippi, and Tennessee to define this study region.
+```{r}
+# get state boundary shapefiles
+se_boundary <- maps::map('state', regions = c('alabama', 'mississippi', 'georgia', 'tennessee'), 
+                    fill = TRUE, plot = FALSE) %>% 
+  st_as_sf()
+
+# subset global NPP
+se_npp <- st_as_stars(npp[se_boundary])
+```
+
+```{r, echo = FALSE}
+a <- ggplot() +
+  geom_stars(data = se_npp) +
+  geom_sf(data = se_boundary, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'US Southeast') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+a
+```
+
+## Southwest
+
+Use the boundaries of Arizona and New Mexico for now. There's probably a better region boundary to use on cyberSW?
+```{r}
+# get state boundary shapefiles
+sw_boundary <- maps::map('state', regions = c('arizona', 'new mexico'), 
+                    fill = TRUE, plot = FALSE) %>% 
+  st_as_sf()
+
+# subset global NPP map
+sw_npp <- st_as_stars(npp[sw_boundary])
+```
+
+```{r, echo = FALSE}
+b <- ggplot() +
+  geom_stars(data = sw_npp) +
+  geom_sf(data = sw_boundary, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'US Southwest') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+b
+```
+
+
+## Central Italy 
+
+Calculate a convex hull around all survey boundaries from Palmisano et al. 2018. Would be nice to get the original shapefile from the manuscript.
+```{r}
+rome <- read_sf('Palmisanoetal/Palmisanoetal/shp/surveys.shp') %>% 
+  st_union() %>% 
+  st_convex_hull()
+
+rome_npp <- st_as_stars(npp[rome])
+```
+
+
+```{r, echo = FALSE}
+c <- ggplot() +
+  geom_stars(data = rome_npp) +
+  geom_sf(data = rome, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Central Italy') +
+  labs(y = 'Latitude', x = 'Longitude') +  theme_bw()
+c
+```
+
+## Mixteca Alta Survey
+
+Read in the 'border' shapefile from the Mixteca Survey folder on Dropbox. Not in lat/lon and the projection isn't clear from the file. Guessing it's originally NAD27 UTM 14N from looking at prior publications, but need to confirm!
+```{r}
+# this file reads as 3 linestrings
+mixteca_alta <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/Mixteca Survey Data/border/arc.adf') %>%
+  st_union() %>% # combine linestrings into 1 line
+  st_polygonize() %>% # convert to polygon
+  st_as_sf(crs = 26714) %>% # NAD27 UTM Zone 14N -- is this
+  st_transform(4326) # transform to lat lon
+
+mixteca_npp <- st_as_stars(npp[mixteca_alta])
+```
+
+
+```{r, echo = FALSE}
+d <- ggplot() +
+  geom_stars(data = mixteca_npp) +
+  geom_sf(data = mixteca_alta, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+   ggtitle('Climatological NPP', 'Mixteca Alta survey') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+d
+```
+
+## Yautepec Valley Survey
+
+Using the "valbordr" shapefile from the yv94-96 folder on Dropbox. Assuming the projection is the same as the Mixteca data.
+```{r, message = FALSE}
+yautepec <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/Yautepec Valley Survey/yv94-96/valbordr.shp') %>% 
+  st_set_crs(26714) %>% # NAD27 UTM Zone 14N -- is this
+  st_transform(4326) # transform to lat lon
+  
+yautepec_npp <- st_as_stars(npp[yautepec])
+```
+
+```{r, echo = FALSE}
+e <- ggplot() +
+  geom_stars(data = yautepec_npp) +
+  geom_sf(data = yautepec, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+    ggtitle('Climatological NPP', 'Yautepec Valley survey') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+e
+```
+
+## Comparison
+
+As the maps above highlight, NPP varies greatly across regions. How do their distributions look on the same scale?
+```{r, echo = FALSE}
+list(rome = rome_npp, sw = sw_npp, se = se_npp, mixteca = mixteca_npp, yautepec = yautepec_npp) %>%
+  map_dfr(as_data_frame, .id = 'region') %>%
+  remove_missing() %>%
+  ggplot(aes(npp, fill = region)) +
+  geom_density(alpha = .65) +
+  scale_fill_brewer(palette = 'Spectral') +
+  ggtitle('Regional NPP distributions') +
+  theme_bw()
+```
+# TODO
+
+- Crop coefficients (npp -> wheat, maize yields)
+- NPP reconstructions (850 CE - present would be easiest)
+- Arable land mask using slope
