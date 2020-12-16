@@ -1,18 +1,16 @@
 ---
-title: "Potential Productivity Analysis"
+title: "Climatic Potential for Agricultural Productivity"
+date: "Last run on `r Sys.Date()`"
 output:
+  html_document:
+    df_print: paged
   pdf_document: default
   html_notebook: default
 ---
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, message=FALSE}
 knitr::opts_chunk$set(warning = FALSE, message = FALSE)
-```
-
-# Setup
-
-Load packages required for this analysis.
-```{r, message = FALSE}
+# load packages
 library(sf) # geospatial analysis
 library(stars) # raster processing
 library(tidyverse) # data cleaning
@@ -21,12 +19,12 @@ library(tidyverse) # data cleaning
 
 # Global productivity estimates
 
-The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. The model uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final potential NPP estimate:
+The Miami model of Helmut Lieth characterizes climatic potential net primary production (NPP) as a function of two limiting factors: mean annual temperature and total annual precipitation. It uses the following empirical functions to relate each variable to potential NPP, the lowest of which (i.e. the limiting factor) is taken as the final NPP estimate:
 
 $$NPP_{precip} = 3000(1 - e^{-0.000664 P})$$
 $$NPP_{temp} = \frac{3000}{1 + e^{1.315-0.119T}}$$
 
-We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of global climate layers that have undergone statistical downscaling to correct for topoclimatic influences such as orographic precipitation and temperature inversions.
+We'll apply this model to 30-year temperature and precipitation averages from the CHELSA dataset, a set of statistically downscaled climate data that corrects for topoclimatic influences like orographic precipitation and temperature inversions.
 
 ```{r}
 npp <- read_stars(c('CHELSA_bio10_01.tif', 'CHELSA_bio10_12.tif')) %>% 
@@ -39,6 +37,8 @@ npp <- read_stars(c('CHELSA_bio10_01.tif', 'CHELSA_bio10_12.tif')) %>%
   select(npp)
 ```
 
+The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
+
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = npp, downsample = 10) +
@@ -48,7 +48,8 @@ ggplot() +
   labs(x = 'Longitude', y = 'Latitude') +
   coord_quickmap()
 ```
-The resulting map gives us climatic potential NPP in grams of dry matter per square meter per year, with a theoretical maximum value of 3,000 $g/m^2$. This can be easily converted to expected crop yields using empirical coefficients for different crop types.
+
+\newpage
 
 # Regional productivity estimates
 
@@ -76,6 +77,8 @@ a <- ggplot() +
 a
 ```
 
+\newpage
+
 ## Southwest
 
 Use the boundaries of Arizona and New Mexico for now. There's probably a better region boundary to use on cyberSW?
@@ -100,6 +103,7 @@ b <- ggplot() +
 b
 ```
 
+\newpage
 
 ## Central Italy 
 
@@ -112,7 +116,6 @@ rome <- read_sf('Palmisanoetal/Palmisanoetal/shp/surveys.shp') %>%
 rome_npp <- st_as_stars(npp[rome])
 ```
 
-
 ```{r, echo = FALSE}
 c <- ggplot() +
   geom_stars(data = rome_npp) +
@@ -122,6 +125,8 @@ c <- ggplot() +
   labs(y = 'Latitude', x = 'Longitude') +  theme_bw()
 c
 ```
+
+\newpage
 
 ## Mixteca Alta Survey
 
@@ -137,7 +142,6 @@ mixteca_alta <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/M
 mixteca_npp <- st_as_stars(npp[mixteca_alta])
 ```
 
-
 ```{r, echo = FALSE}
 d <- ggplot() +
   geom_stars(data = mixteca_npp) +
@@ -148,6 +152,8 @@ d <- ggplot() +
   theme_bw()
 d
 ```
+\newpage
+
 
 ## Yautepec Valley Survey
 
@@ -171,9 +177,12 @@ e <- ggplot() +
 e
 ```
 
+\newpage
+
 ## Comparison
 
 As the maps above highlight, NPP varies greatly across regions. How do their distributions look on the same scale?
+
 ```{r, echo = FALSE}
 list(rome = rome_npp, sw = sw_npp, se = se_npp, mixteca = mixteca_npp, yautepec = yautepec_npp) %>%
   map_dfr(as_data_frame, .id = 'region') %>%
@@ -184,7 +193,8 @@ list(rome = rome_npp, sw = sw_npp, se = se_npp, mixteca = mixteca_npp, yautepec 
   ggtitle('Regional NPP distributions') +
   theme_bw()
 ```
-# TODO
+
+# To Do
 
 - Crop coefficients (npp -> wheat, maize yields)
 - NPP reconstructions (850 CE - present would be easiest)
