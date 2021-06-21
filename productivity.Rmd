@@ -14,6 +14,7 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 library(sf) # geospatial analysis
 library(stars) # raster processing
 library(tidyverse) # data cleaning
+library(ggridges)
 # library(maps) used for state boundaries, but not loaded here
 ```
 
@@ -71,10 +72,6 @@ ggplot() +
   labs(x = 'Longitude', y = 'Latitude')
 ```
 
-```{r}
-c(npp, arable, along = 3)
-```
-
 
 # Regional productivity estimates
 
@@ -114,10 +111,11 @@ ggplot() +
 ggplot() +
   geom_stars(data = se_env) +
   geom_sf(data = se_boundary, fill = NA, size = 1) +
-    scale_fill_viridis_c(na.value = NA, name = 'Kilotons grain') +
+    scale_fill_viridis_c(na.value = NA, name = 'Aboveground grain\nbiomass (kt)') +
   ggtitle('Environmental potential', 'US Southeast') +
   labs(y = 'Latitude', x = 'Longitude') +
   theme_bw()
+#ggsave('se_arable.png', height = 4, width = 6)
 ```
 
 
@@ -419,41 +417,42 @@ ggplot() +
 
 As the maps above highlight, NPP varies greatly across regions. How do their distributions look on the same scale?
 
-```{r, echo = FALSE}
-list(rome = rome_npp, sw = sw_npp, se = se_npp, yautepec = yautepec_npp, crescent = crescent_npp, bom = bom_npp, santa = santa_npp) %>%
-  map_dfr(as_data_frame, .id = 'region') %>%
-  remove_missing() %>%
-  ggplot(aes(npp, fill = reorder(region, npp, FUN = median))) +
-  geom_density(alpha = .65) +
-  scale_fill_brewer(palette = 'Spectral', name = 'Region') +
-  ggtitle('Regional NPP distributions') +
-  theme_bw()
-```
 
 ```{r}
-library(ggridges)
-list(rome = rome_npp, sw = sw_npp, se = se_npp, yautepec = yautepec_npp, crescent = crescent_npp, bom = bom_npp, santa = santa_npp) %>%
+npp_dat <- list('Central Italy' = rome_npp, 'Southwest US' = sw_npp, 'Southeast US' = se_npp, 'Yautepec Valley' = yautepec_npp, 'Fertile Crescent' = crescent_npp, 'Basin of Mexico' = bom_npp, 'Santa Valley' = santa_npp) %>%
   map_dfr(as_data_frame, .id = 'region') %>%
-  remove_missing() %>%
-  ggplot(aes(npp, reorder(region, -npp, FUN = median), fill = reorder(region, npp, FUN = median))) +
+  select(-x, -y) %>%
+  remove_missing()
+  
+write_csv(npp_dat, 'npp_dat.csv')
+  ggplot(npp_dat, aes(npp, 
+                      reorder(region, -npp, FUN = median), 
+                      fill = reorder(region, npp, FUN = median))) +
   geom_density_ridges(alpha = .65) +
   scale_fill_brewer(palette = 'Spectral', name = 'Region') +
   ggtitle('Regional NPP distributions') +
-  labs(y = '') +
-  theme_bw()
+  labs(y = '', x = expression(Potential~net~primary~producivity~(g/m^2))) +
+  theme_minimal() +
+  theme(legend.position = 'none')
+ggsave('npp_dist.png', height = 4, width = 6)
 ```
 
 ```{r, echo = FALSE}
-list(rome = rome_env, sw = sw_env, se = se_env, yautepec = yautepec_env, crescent = crescent_env, bom = bom_env, santa = santa_env) %>%
+list('Central Italy' = rome_env, 'Southwest US' = sw_env, 'Southeast US' = se_env, 'Yautepec Valley' = yautepec_env, 'Fertile Crescent' = crescent_env, 'Basin of Mexico' = bom_env, 'Santa Valley' = santa_env)  %>%
   map_dfr(as_data_frame, .id = 'region') %>%
   remove_missing() %>%
-   ggplot(aes(as.numeric(npp), reorder(region, -as.numeric(npp), FUN = median), fill = reorder(region, as.numeric(npp), FUN = median))) +
+  mutate(region = factor(region, levels = rev(c('Santa Valley', 'Fertile Crescent', 'Southwest US', 'Basin of Mexico', 'Central Italy', 'Yautepec Valley', 'Southeast US')))) %>%
+   ggplot(aes(as.numeric(npp), region, fill =  region)) +
   geom_density_ridges(alpha = .65) +
-  scale_fill_brewer(palette = 'Spectral', name = 'Region') +
+  scale_fill_brewer(palette = 'Spectral', name = 'Region', direction = -1) +
   ggtitle('Regional NPP distributions with arable land mask') +
-    labs(y = '', y = 'npp') +
-  theme_bw()
+    labs(y = '', x = expression(Potential~net~primary~producivity~(g/m^2))) +
+  theme_minimal() +
+  theme(legend.position = 'none')
+
+ggsave('npp_arable_dist.png', height = 4, width = 6)
 ```
+
 ```{r}
 list(rome = rome_npp, sw = sw_npp, se = se_npp, yautepec = yautepec_npp, crescent = crescent_npp, bom = bom_npp, santa = santa_npp) %>%
   map_dfr(as_data_frame, .id = 'region') %>%
@@ -471,12 +470,12 @@ list(rome = rome_npp, sw = sw_npp, se = se_npp, yautepec = yautepec_npp, crescen
 What if instead we interpret the settlement data as *samples* from a larger distribution, and look at more "objective" regions
 
 ```{r}
-ag_simp <- read_sf('../ArchaeoGLOBE/analysis/data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp') %>% filter(Archaeo_RG %in% c('Southwestern USA', 'Southeastern USA', 'Central Mexico', 'Syria, Cyprus, and the Levant', 'Iraq', 'Gran Chaco', 'Southern Europe')) %>%
+ag_simp <- read_sf('../ArchaeoGLOBE/analysis/data/raw-data/ArchaeoGLOBE_Simplified_Regions/ArchaeoGLOBE_Simplified_Regions.shp') %>% filter(Archaeo_RG %in% c('Southwestern USA', 'Southeastern USA', 'Central Mexico', 'Syria, Cyprus, and the Levant', 'Iraq', 'Central Andes Mountains', 'Southern Europe')) %>%
   st_transform(st_crs(npp))
 ```
 
 ```{r}
-ag <- read_sf('../ArchaeoGLOBE/analysis/data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp') %>% filter(Archaeo_RG %in% c('Southwestern USA', 'Southeastern USA', 'Central Mexico', 'Syria, Cyprus, and the Levant', 'Iraq', 'Gran Chaco', 'Southern Europe')) %>%
+ag <- read_sf('../ArchaeoGLOBE/analysis/data/raw-data/ArchaeoGLOBE_Regions/ArchaeGLOBE_Regions.shp') %>% filter(Archaeo_RG %in% c('Southwestern USA', 'Southeastern USA', 'Central Mexico', 'Syria, Cyprus, and the Levant', 'Iraq', 'Central Andes Mountains', 'Southern Europe')) %>%
   st_transform(st_crs(npp))
 ```
 
@@ -490,15 +489,13 @@ ag_npp <- ag %>%
   unnest(dat) %>%
   remove_missing()
   
-
-ggplot(ag_npp, aes(npp, fill = Archaeo_RG)) +
-  geom_density(alpha = .65) +
-  scale_fill_brewer(palette = 'Spectral') +
+ ggplot(ag_npp, aes(npp, reorder(Archaeo_RG, -npp, FUN = median), fill = reorder(Archaeo_RG, npp, FUN = median))) +
+  geom_density_ridges(alpha = .65) +
+  scale_fill_brewer(palette = 'Spectral', name = 'Region') +
   ggtitle('Regional NPP distributions') +
-  theme_bw()
-```
-```{r}
-ag %>% filter(Archaeo_RG == 'Gran Chaco')
+  labs(y = '', x = expression(Potential~net~primary~producivity~(g/m^2))) +
+  theme_minimal() +
+  theme(legend.position = 'none')
 ```
 
 
