@@ -15,6 +15,8 @@ library(sf) # geospatial analysis
 library(stars) # raster processing
 library(tidyverse) # data cleaning
 library(ggridges)
+library(rnaturalearth)
+library(ggrepel)
 sf_use_s2(FALSE)
 # library(maps) used for state boundaries, but not loaded here
 ```
@@ -50,6 +52,15 @@ ggplot() +
   labs(x = 'Longitude', y = 'Latitude')
 ```
 
+```{r, echo = FALSE}
+npp2 <- read_stars('~/Downloads/CHELSA_npp_1981-2010_V.2.1.tif') 
+ggplot() +
+  geom_stars(data = npp2 * npp / npp , downsample = 10) +# hacky way to crop to land
+  scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Potential net primary production', 'Maximum terrestrial biomass given modern temperature and precipitation') +
+  theme_bw() +
+  labs(x = 'Longitude', y = 'Latitude')
+```
 \newpage
 
 # Terrain
@@ -88,6 +99,8 @@ se_boundary <- maps::map('state', regions = c('alabama', 'mississippi', 'georgia
 
 # subset global NPP and arable land
 se_npp <- st_as_stars(npp[se_boundary])
+se_npp2 <- st_as_stars(npp2[se_boundary])
+
 se_arable <- st_as_stars(arable[se_boundary]) / 100
 se_env <- se_npp * se_arable * st_area(se_arable) / 1000000 * 0.25 # the 1000000 converts from kg to kt, the 0.25 from total biomass to aboveground grain biomass
 ```
@@ -95,6 +108,14 @@ se_env <- se_npp * se_arable * st_area(se_arable) / 1000000 * 0.25 # the 1000000
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = se_npp) +
+  geom_sf(data = se_boundary, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'US Southeast') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = se_npp2) +
   geom_sf(data = se_boundary, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'US Southeast') +
@@ -127,12 +148,15 @@ ggplot() +
 Use the boundaries of Arizona and New Mexico for now. There's probably a better region boundary to use on cyberSW?
 ```{r}
 # get state boundary shapefiles
-sw_boundary <- maps::map('state', regions = c('arizona', 'new mexico'), 
+sw_boundary <- maps::map('state', regions = c('arizona', 'new mexico', 'colorado', 'utah'), 
                     fill = TRUE, plot = FALSE) %>% 
   st_as_sf() %>%
+  st_make_valid() %>%
   st_union()
 
 sw_npp <- st_as_stars(npp[sw_boundary])
+sw_npp2 <- st_as_stars(npp2[sw_boundary])
+
 sw_arable <- st_as_stars(arable[sw_boundary]) / 100
 sw_env <- sw_npp * sw_arable * st_area(sw_arable) / 1000000 * 0.25
 ```
@@ -141,7 +165,15 @@ sw_env <- sw_npp * sw_arable * st_area(sw_arable) / 1000000 * 0.25
 ggplot() +
   geom_stars(data = sw_npp) +
   geom_sf(data = sw_boundary, fill = NA, size = 1) +
-    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2), limits = c(0, 1270)) +
+  ggtitle('Climatological NPP', 'US Southwest') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = sw_npp2) +
+  geom_sf(data = sw_boundary, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2), limits = c(0, 1270)) +
   ggtitle('Climatological NPP', 'US Southwest') +
   labs(y = 'Latitude', x = 'Longitude') +
   theme_bw()
@@ -175,6 +207,8 @@ rome <- read_sf('Palmisanoetal/Palmisanoetal/shp/surveys.shp') %>%
   st_convex_hull()
 
 rome_npp <- st_as_stars(npp[rome])
+rome_npp2 <- st_as_stars(npp2[rome])
+
 rome_arable <- st_as_stars(arable[rome]) / 100
 rome_env <- rome_npp * rome_arable * st_area(rome_arable) / 1000000 * 0.25
 ```
@@ -182,6 +216,14 @@ rome_env <- rome_npp * rome_arable * st_area(rome_arable) / 1000000 * 0.25
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = rome_npp) +
+  geom_sf(data = rome, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Central Italy') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = rome_npp2) +
   geom_sf(data = rome, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Central Italy') +
@@ -219,6 +261,8 @@ mixteca_alta <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/M
   st_transform(4326) # transform to lat lon
 
 mixteca_npp <- st_as_stars(npp[mixteca_alta])
+mixteca_npp2 <- st_as_stars(npp2[mixteca_alta])
+
 mixteca_arable <- st_as_stars(arable[mixteca_alta]) / 100
 mixteca_env <- mixteca_npp * mixteca_arable * st_area(mixteca_arable) / 1000000 * 0.25
 ```
@@ -226,6 +270,14 @@ mixteca_env <- mixteca_npp * mixteca_arable * st_area(mixteca_arable) / 1000000 
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = mixteca_npp) +
+  geom_sf(data = mixteca_alta, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Mixteca Alta survey') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = mixteca_npp2) +
   geom_sf(data = mixteca_alta, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Mixteca Alta survey') +
@@ -260,6 +312,7 @@ yautepec <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/Yaute
   st_transform(4326) # transform to lat lon
 
 yautepec_npp <- st_as_stars(npp[yautepec])
+yautepec_npp2 <- st_as_stars(npp2[yautepec])
 yautepec_arable <- st_as_stars(arable[yautepec]) / 100
 yautepec_env <- yautepec_npp * yautepec_arable * st_area(yautepec_arable) / 1000000 * 0.25
 ```
@@ -267,6 +320,14 @@ yautepec_env <- yautepec_npp * yautepec_arable * st_area(yautepec_arable) / 1000
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = yautepec_npp) +
+  geom_sf(data = yautepec, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Yautepec Valley survey') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = yautepec_npp2) +
   geom_sf(data = yautepec, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Yautepec Valley survey') +
@@ -300,6 +361,7 @@ Load the Fragile Crescent project boundary shapefile.
 crescent <- read_sf('~/Dropbox/Settlement Persistence Project/Samples-Data/Near East Data/GIS/FertileCrescent_region.shp')
 
 crescent_npp <- st_as_stars(npp[crescent])
+crescent_npp2 <- st_as_stars(npp2[crescent])
 crescent_arable <- st_as_stars(arable[crescent]) / 100
 crescent_env <- crescent_npp * crescent_arable * st_area(crescent_arable) / 1000000 * 0.25
 ```
@@ -307,6 +369,13 @@ crescent_env <- crescent_npp * crescent_arable * st_area(crescent_arable) / 1000
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = crescent_npp) +
+  geom_sf(data = crescent, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Fertile Crescent') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+ggplot() +
+  geom_stars(data = crescent_npp2) +
   geom_sf(data = crescent, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Fertile Crescent') +
@@ -341,6 +410,8 @@ bom <- read_sf('a2606.shp') %>%
   st_transform(st_crs(npp))
 
 bom_npp <- st_as_stars(npp[bom])
+bom_npp2 <- st_as_stars(npp2[bom])
+
 bom_arable <- st_as_stars(arable[bom]) / 100
 bom_env <- bom_npp * bom_arable * st_area(bom_arable) / 1000000 * 0.25
 ```
@@ -348,6 +419,14 @@ bom_env <- bom_npp * bom_arable * st_area(bom_arable) / 1000000 * 0.25
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = bom_npp) +
+  geom_sf(data = bom, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Basin of Mexico') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+
+ggplot() +
+  geom_stars(data = bom_npp2) +
   geom_sf(data = bom, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Basin of Mexico') +
@@ -382,6 +461,8 @@ santa <- read_sf('santa_valley.shp') %>%
   st_transform(st_crs(npp))
 
 santa_npp <- st_as_stars(npp[santa])
+santa_npp2 <- st_as_stars(npp2[santa])
+
 santa_arable <- st_as_stars(arable[santa]) / 100
 santa_env <- santa_npp * santa_arable * st_area(santa_arable) / 1000000 * 0.25
 ```
@@ -389,6 +470,13 @@ santa_env <- santa_npp * santa_arable * st_area(santa_arable) / 1000000 * 0.25
 ```{r, echo = FALSE}
 ggplot() +
   geom_stars(data = santa_npp) +
+  geom_sf(data = santa, fill = NA, size = 1) +
+    scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
+  ggtitle('Climatological NPP', 'Santa Valley') +
+  labs(y = 'Latitude', x = 'Longitude') +
+  theme_bw()
+ggplot() +
+  geom_stars(data = santa_npp2) +
   geom_sf(data = santa, fill = NA, size = 1) +
     scale_fill_viridis_c(na.value = NA, name = expression(g/m^2)) +
   ggtitle('Climatological NPP', 'Santa Valley') +
@@ -420,23 +508,47 @@ As the maps above highlight, NPP varies greatly across regions. How do their dis
 
 
 ```{r}
-npp_dat <- list('Central Italy' = rome_npp, 'Southwest US' = sw_npp, 'Southeast US' = se_npp, 'Yautepec Valley' = yautepec_npp, 'Fertile Crescent' = crescent_npp, 'Basin of Mexico' = bom_npp, 'Santa Valley' = santa_npp) %>%
+npp_dat <- list('Central Italy' = rome_npp, 'Southwest US' = sw_npp, 'Southeast US' = se_npp, 'Yautepec Valley' = yautepec_npp, 'Northern Fertile Crescent' = crescent_npp, 'Basin of Mexico' = bom_npp, 'Santa Valley' = santa_npp) %>%
   map_dfr(as_data_frame, .id = 'region') %>%
   select(-x, -y) %>%
   remove_missing()
   
-write_csv(npp_dat, 'npp_dat.csv')
-npp_dat <- read_csv('npp_dat.csv')
+write_csv(npp_dat, 'npp_dat_v2.csv')
+npp_dat <- read_csv('npp_dat_v2.csv')
   ggplot(npp_dat, aes(npp, 
                       reorder(region, -npp, FUN = median), 
                       fill = reorder(region, npp, FUN = median))) +
   geom_density_ridges(alpha = .65) +
-  scale_fill_brewer(palette = 'Spectral', name = 'Region') +
+  #scale_fill_brewer(palette = 'Spectral', name = 'Region') +
+  #scale_fill_brewer(palette = 'RdYlBu', name = 'Region') +
+ scale_fill_viridis_d(option = 'turbo', name = 'Region', direction = -1) +
+  #scale_fill_scico_d(palette = 'batlow', direction = -1) +
+ # scale_fill_manual(values = rev(wes_palette('Darjeeling1', 7, type = 'continuous'))) +
+# scale_fill_manual(values = rev(kovesi.rainbow(7))) +
+
   ggtitle('Regional NPP distributions') +
   labs(y = '', x = expression(Potential~net~primary~producivity~(g/m^2))) +
   theme_minimal() +
   theme(legend.position = 'none')
-ggsave('npp_dist.png', height = 4, width = 6)
+  
+ggsave('npp_dist_turbo2.png', height = 4, width = 6)
+```
+```{r}
+npp_dat2 <- list('Central Italy' = rome_npp2, 'Southwest US' = sw_npp2, 'Southeast US' = se_npp2, 'Yautepec Valley' = yautepec_npp2, 'Northern Fertile Crescent' = crescent_npp2, 'Basin of Mexico' = bom_npp2, 'Santa Valley' = santa_npp2) %>%
+  map_dfr(as_data_frame, .id = 'region') %>%
+  select(-x, -y) %>%
+  remove_missing() %>%
+  rename(npp = CHELSA_npp_1981.2010_V.2.1.tif)
+ggplot(npp_dat2, aes(npp, 
+                      reorder(region, -npp, FUN = median), 
+                      fill = reorder(region, npp, FUN = median))) +
+  geom_density_ridges(alpha = .65) +
+ scale_fill_viridis_d(option = 'turbo', name = 'Region', direction = -1) +
+
+  ggtitle('Regional NPP distributions', 'Chelsa V2') +
+  labs(y = '', x = expression(Potential~net~primary~producivity~(g/m^2))) +
+  theme_minimal() +
+  theme(legend.position = 'none')
 ```
 
 ```{r, echo = FALSE}
@@ -501,6 +613,7 @@ ag_npp <- ag %>%
 ```
 # Regional shapefiles
 
+Various versions of the map below.
 ```{r}
 library(ggrepel)
 pts <- list('Central Italy' = rome, 'Southwest US' = sw_boundary, 'Southeast US' = se_boundary, 'Yautepec Valley' = yautepec, 'Fertile Crescent' = crescent, 'Basin of Mexico' = bom, 'Santa Valley' = santa)  %>%
@@ -566,14 +679,25 @@ ggplot(land) +
   theme(legend.position = 'none')
 ```
 ```{r}
-land <- ne_download(scale = 'small', type = 'land', category = 'physical', returnclass = 'sf')
+bnds <- list('Central Italy' = st_zm(rome), 'Southwest US' = sw_boundary, 'Southeast US' = se_boundary, 'Yautepec Valley' = yautepec, 'Northern Fertile Crescent' = crescent, 'Basin of Mexico' = bom, 'Santa Valley' = santa)  %>%
+  map(st_geometry) %>%
+  do.call(c, .) %>%
+  st_sf(row.names = c('Central Italy', 'Southwest US', 'Southeast US', 'Yautepec Valley', 'Northern Fertile Crescent', 'Basin of Mexico', 'Santa Valley')) %>%
+  rownames_to_column() %>%
+  mutate(rowname = factor(rowname, levels = c('Santa Valley', 'Northern Fertile Crescent', 'Southwest US','Basin of Mexico','Central Italy', 'Yautepec Valley',  'Southeast US') )) %>%
+  arrange(rowname) 
+```
+
+This is the final version!
+```{r}
+land <- rnaturalearth::ne_download(scale = 'small', type = 'land', category = 'physical', returnclass = 'sf')
 
 ggplot(land) + 
   geom_sf(fill = "lightgray", color = "gray", size = 0.5/.pt) +
  # geom_sf(data = goode_without, fill = "white", color = "NA") +
   #geom_sf(data = goode_outline, fill = NA, color = "gray", size = 0.5/.pt) +
     #geom_sf(data = pts, size = 3/.pt, aes(color = rowname)) +
-      geom_sf(data = bnds, aes(fill = rowname, color = rowname)) +
+      geom_sf(data = bnds, aes(fill = rowname, color = rowname), size = 1.5) +
   scale_fill_viridis_d(option = 'turbo', direction = -1) +
     scale_color_viridis_d(option = 'turbo', direction = -1) +
   geom_label_repel(data = bnds, aes(geometry = geometry, label = rowname), stat = 'sf_coordinates', min.segment.length = 0, box.padding = 0.75, size = 2.5) +
@@ -586,17 +710,9 @@ ggplot(land) +
     coord_sf(xlim = c(-122, 47), ylim = c(-15, 55), expand = FALSE) +
   theme_bw() +
   theme(legend.position = 'none')
-ggsave('case_studies.png', height = 3, width = 6.5)
+ggsave('case_studies_v2.png', height = 3, width = 6.5)
 ```
-```{r}
-bnds <- list('Central Italy' = st_zm(rome), 'Southwest US' = sw_boundary, 'Southeast US' = se_boundary, 'Yautepec Valley' = yautepec, 'Fertile Crescent' = crescent, 'Basin of Mexico' = bom, 'Santa Valley' = santa)  %>%
-  map(st_geometry) %>%
-  do.call(c, .) %>%
-  st_sf(row.names = c('Central Italy', 'Southwest US', 'Southeast US', 'Yautepec Valley', 'Fertile Crescent', 'Basin of Mexico', 'Santa Valley')) %>%
-  rownames_to_column() %>%
-  mutate(rowname = factor(rowname, levels = c('Santa Valley', 'Fertile Crescent', 'Southwest US','Basin of Mexico','Central Italy', 'Yautepec Valley',  'Southeast US') )) %>%
-  arrange(rowname) 
-```
+
 
 # To Do
 
